@@ -1,0 +1,440 @@
+[
+  {
+    "name": "web_search",
+    "description": "Search the web for current information. Use when the question involves recent events, current data, or anything that may have changed since the knowledge cutoff (August 2025). Keep queries short (2–6 words). Scale the number of calls to query complexity: 1 for simple facts, 3–5 for moderate research, 5–10 for comprehensive analysis. Never search for timeless facts or concepts Claude can answer reliably from training.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Short, specific search query (2–6 words). Each call must use a meaningfully different query from previous ones."
+        }
+      },
+      "required": ["query"]
+    }
+  },
+  {
+    "name": "web_fetch",
+    "description": "Retrieve the full content of a specific URL. Use when a search result needs deeper reading, when the user provides a URL, or when snippets are insufficient. Can extract text from PDFs. Cannot access pages requiring authentication. Only fetch URLs returned by web_search or provided directly by the user.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "Exact URL to fetch. Must include protocol (https://). Only use URLs from search results or user-provided links."
+        },
+        "text_content_token_limit": {
+          "type": "integer",
+          "description": "Optional. Truncate text content to approximately this many tokens."
+        },
+        "web_fetch_pdf_extract_text": {
+          "type": "boolean",
+          "description": "If true, extract text from PDFs. Otherwise return raw bytes."
+        }
+      },
+      "required": ["url"]
+    }
+  },
+  {
+    "name": "image_search",
+    "description": "Search for images to accompany explanations. Use when visuals genuinely enhance understanding — places, products, animals, food, exercises, historical subjects, design inspiration. Skip for pure text tasks, code, math, or analysis. Always retrieve minimum 3 images per call. NEVER search for: copyrighted characters/IP, celebrities, movie/TV stills, sports footage, graphic violence, sexual content, or anything that could harm or harass individuals.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Specific image search query (3–6 words). Include geographic or contextual detail for accuracy (e.g., 'Eiffel Tower Paris France' not 'Paris')."
+        },
+        "max_results": {
+          "type": "integer",
+          "description": "Number of images to return. Minimum 3, maximum 5. Default: 3.",
+          "minimum": 3,
+          "maximum": 5
+        }
+      },
+      "required": ["query"]
+    }
+  },
+  {
+    "name": "places_search",
+    "description": "Find businesses, restaurants, attractions, and locations via Google Places. Supports multiple queries per call for efficient itinerary planning. Results include place_id, name, address, coordinates, ratings, hours, and photos. Use place_ids from results with places_map_display_v0. For broad location queries, decompose into multiple specific queries (e.g., 'luxury hotels London' → 'luxury hotels Mayfair London', 'luxury hotels Chelsea London').",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "queries": {
+          "type": "array",
+          "description": "List of 1–10 search queries.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string",
+                "description": "Natural language search query (e.g., 'ramen restaurants Tokyo', 'coffee shops near Shibuya')"
+              },
+              "max_results": {
+                "type": "integer",
+                "description": "Maximum results for this query (1–10, default 5).",
+                "minimum": 1,
+                "maximum": 10
+              }
+            },
+            "required": ["query"]
+          },
+          "minItems": 1,
+          "maxItems": 10
+        },
+        "location_bias_lat": {
+          "type": "number",
+          "description": "Optional latitude to bias results toward a geographic area."
+        },
+        "location_bias_lng": {
+          "type": "number",
+          "description": "Optional longitude to bias results toward a geographic area."
+        },
+        "location_bias_radius": {
+          "type": "number",
+          "description": "Optional search radius in meters (default 5000 if lat/lng provided)."
+        }
+      },
+      "required": ["queries"]
+    }
+  },
+  {
+    "name": "places_map_display_v0",
+    "description": "Display locations on an interactive map — either as simple markers or as a structured day-by-day itinerary with routing. Always use place_ids copied EXACTLY from places_search results (case-sensitive). Supports driving, walking, transit, and bicycling routes.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Title for the map or itinerary."
+        },
+        "narrative": {
+          "type": "string",
+          "description": "Tour guide intro for itinerary mode."
+        },
+        "locations": {
+          "type": "array",
+          "description": "Simple marker display — list of locations without day structure.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "latitude": { "type": "number" },
+              "longitude": { "type": "number" },
+              "place_id": { "type": "string", "description": "Copy EXACTLY from places_search results." },
+              "notes": { "type": "string" },
+              "address": { "type": "string" }
+            },
+            "required": ["name", "latitude", "longitude"]
+          }
+        },
+        "days": {
+          "type": "array",
+          "description": "Itinerary mode — multi-day structured trip.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "day_number": { "type": "integer" },
+              "title": { "type": "string" },
+              "narrative": { "type": "string" },
+              "locations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": { "type": "string" },
+                    "latitude": { "type": "number" },
+                    "longitude": { "type": "number" },
+                    "place_id": { "type": "string" },
+                    "notes": { "type": "string" },
+                    "arrival_time": { "type": "string" },
+                    "duration_minutes": { "type": "integer" },
+                    "address": { "type": "string" }
+                  },
+                  "required": ["name", "latitude", "longitude"]
+                }
+              }
+            },
+            "required": ["day_number", "locations"]
+          }
+        },
+        "travel_mode": {
+          "type": "string",
+          "enum": ["driving", "walking", "transit", "bicycling"],
+          "description": "Travel mode for routing (default: driving)."
+        },
+        "show_route": {
+          "type": "boolean",
+          "description": "Show route between stops. Default: true for itinerary, false for markers."
+        }
+      }
+    }
+  },
+  {
+    "name": "weather_fetch",
+    "description": "Retrieve current weather conditions and forecast for a location. Use for weather-dependent planning, outdoor activity advice, or 'what to wear' questions. Display temperatures in Celsius for non-US users, Fahrenheit for US users.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "location_name": {
+          "type": "string",
+          "description": "Human-readable location name (e.g., 'Tokyo, Japan', 'New York, NY')."
+        },
+        "latitude": {
+          "type": "number",
+          "description": "Latitude coordinate of the location."
+        },
+        "longitude": {
+          "type": "number",
+          "description": "Longitude coordinate of the location."
+        }
+      },
+      "required": ["latitude", "location_name", "longitude"]
+    }
+  },
+  {
+    "name": "bash_tool",
+    "description": "Execute shell commands in a persistent Ubuntu 24 Linux environment at /home/claude. Use for: running Python/Node scripts, installing packages, processing files, creating documents (docx, xlsx, pptx, pdf), and any computation. Key rules: always use --break-system-packages with pip; use npm normally; verify tool availability before use. The filesystem resets between tasks. Output files for the user must go in /mnt/user-data/outputs/.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "Bash command to execute."
+        },
+        "description": {
+          "type": "string",
+          "description": "Brief explanation of why this command is being run."
+        }
+      },
+      "required": ["command", "description"]
+    }
+  },
+  {
+    "name": "str_replace",
+    "description": "Replace a unique string in an existing file with new content. More precise than rewriting whole files. The old_str must appear EXACTLY ONCE in the file — if it appears multiple times, the operation will fail. Use for targeted edits to code, documents, or configuration files.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Absolute path to the file to edit."
+        },
+        "old_str": {
+          "type": "string",
+          "description": "The exact string to replace. Must appear exactly once in the file."
+        },
+        "new_str": {
+          "type": "string",
+          "description": "The replacement string. Leave empty to delete old_str."
+        },
+        "description": {
+          "type": "string",
+          "description": "Brief explanation of why this edit is being made."
+        }
+      },
+      "required": ["old_str", "path"]
+    }
+  },
+  {
+    "name": "create_file",
+    "description": "Create a new file with specified content. Use for creating scripts, documents, configuration files, or any new file from scratch. Always provide description first. For user-facing output, write to /mnt/user-data/outputs/. For intermediate work, use /home/claude/.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "Why this file is being created. Provide this FIRST."
+        },
+        "path": {
+          "type": "string",
+          "description": "Absolute path for the new file. Provide this SECOND."
+        },
+        "file_text": {
+          "type": "string",
+          "description": "Full content of the file. Provide this LAST."
+        }
+      },
+      "required": ["description", "file_text", "path"]
+    }
+  },
+  {
+    "name": "view",
+    "description": "Read a file or list directory contents. Supports text files (with line numbers and optional range), images (JPEG, PNG, GIF, WebP), and directories (2 levels deep). Use to read skill files, inspect uploads, or review work in progress. Uploaded files are at /mnt/user-data/uploads/. Skill files are at /mnt/skills/public/.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Absolute path to file or directory."
+        },
+        "description": {
+          "type": "string",
+          "description": "Why this file is being viewed."
+        },
+        "view_range": {
+          "type": "array",
+          "items": { "type": "integer" },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "Optional [start_line, end_line] for text files. Use -1 for end of file."
+        }
+      },
+      "required": ["description", "path"]
+    }
+  },
+  {
+    "name": "present_files",
+    "description": "Make completed files visible and downloadable to the user. ALWAYS call this after creating output files — users cannot access files without this step. Accepts an array of file paths. Files not in /mnt/user-data/outputs/ are automatically copied there. Present the most relevant file first.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "filepaths": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "Array of absolute file paths to present to the user."
+        }
+      },
+      "required": ["filepaths"]
+    }
+  },
+  {
+    "name": "ask_user_input_v0",
+    "description": "Present structured choices to the user as a clickable widget. Use for bounded decisions with 2–4 options. Do NOT use for open-ended questions (names, descriptions, free text). Always include a brief conversational message before the widget. Prefer multi-select when users might have multiple preferences. Collect all needed information upfront in 1–3 questions rather than spreading across multiple turns.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "question": { "type": "string", "description": "Question text shown to user." },
+              "type": {
+                "type": "string",
+                "enum": ["single_select", "multi_select", "rank_priorities"],
+                "description": "Widget type: single_select (choose 1), multi_select (choose 1+), rank_priorities (drag to rank)."
+              },
+              "options": {
+                "type": "array",
+                "items": { "type": "string" },
+                "minItems": 2,
+                "maxItems": 4,
+                "description": "Short option labels."
+              }
+            },
+            "required": ["question", "options"]
+          },
+          "minItems": 1,
+          "maxItems": 3
+        }
+      },
+      "required": ["questions"]
+    }
+  },
+  {
+    "name": "message_compose_v1",
+    "description": "Draft emails, Slack messages, or text messages. When stakes are high, ambiguous, or involve competing goals, generates 2–3 strategic variants with different outcomes (e.g., 'Hold firm' vs 'Seek compromise'). For simple transactional messages, produces a single well-crafted draft. Supports email (with subject + 'Open in Mail' button), textMessage ('Open in Messages'), and other (LinkedIn, Slack, copy button).",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["email", "textMessage", "other"],
+          "description": "Message channel type."
+        },
+        "summary_title": {
+          "type": "string",
+          "description": "Brief title summarizing the message context."
+        },
+        "variants": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": { "type": "string", "description": "2–4 word goal-oriented label (e.g., 'Hold firm', 'Suggest alternative', 'Warm re-engagement')." },
+              "subject": { "type": "string", "description": "Email subject line (only for kind: email)." },
+              "body": { "type": "string", "description": "Message body content." }
+            },
+            "required": ["label", "body"]
+          },
+          "minItems": 1
+        }
+      },
+      "required": ["kind", "variants"]
+    }
+  },
+  {
+    "name": "recipe_display_v0",
+    "description": "Display an interactive recipe with adjustable servings. The widget scales all ingredient amounts proportionally when the user changes serving count. Use whenever providing cooking instructions, recipes, or food preparation guides. Reference ingredient IDs in step text using {ingredient_id} syntax.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Recipe name." },
+        "description": { "type": "string", "description": "Brief description or tagline." },
+        "base_servings": { "type": "integer", "description": "Number of servings at base ingredient amounts (default: 4)." },
+        "ingredients": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "description": "4-character unique identifier (e.g., '0001')." },
+              "name": { "type": "string" },
+              "amount": { "type": "number" },
+              "unit": {
+                "type": "string",
+                "enum": ["g", "kg", "ml", "l", "tsp", "tbsp", "cup", "fl_oz", "oz", "lb", "pinch", "piece", ""],
+                "description": "Unit of measure. Use '' for countable items."
+              }
+            },
+            "required": ["amount", "id", "name"]
+          }
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "title": { "type": "string", "description": "Short step summary (used as timer label)." },
+              "content": { "type": "string", "description": "Full instruction. Use {ingredient_id} to reference amounts inline." },
+              "timer_seconds": { "type": "integer", "description": "Include for any step involving waiting, cooking, or resting." }
+            },
+            "required": ["content", "id", "title"]
+          }
+        },
+        "notes": { "type": "string", "description": "Optional tips, variations, or substitutions." }
+      },
+      "required": ["ingredients", "steps", "title"]
+    }
+  },
+  {
+    "name": "fetch_sports_data",
+    "description": "Retrieve current sports data: live/recent scores, standings, and detailed game statistics. Supported leagues: nfl, nba, nhl, mlb, wnba, ncaafb, ncaamb, ncaawb, epl, la_liga, serie_a, bundesliga, ligue_1, mls, champions_league, tennis, golf, nascar, cricket, mma. Workflow for live/recent games: (1) fetch scores to get game_id, (2) fetch game_stats using that game_id, (3) respond. Prefer this tool over web_search for sports scores and stats.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "data_type": {
+          "type": "string",
+          "enum": ["scores", "standings", "game_stats"],
+          "description": "scores: recent results, live games, upcoming games. standings: league tables and rankings. game_stats: detailed box score (requires game_id from scores)."
+        },
+        "league": {
+          "type": "string",
+          "enum": ["nfl", "nba", "nhl", "mlb", "wnba", "ncaafb", "ncaamb", "ncaawb", "epl", "la_liga", "serie_a", "bundesliga", "ligue_1", "mls", "champions_league", "tennis", "golf", "nascar", "cricket", "mma"]
+        },
+        "team": {
+          "type": "string",
+          "description": "Optional team name to filter scores results."
+        },
+        "game_id": {
+          "type": "string",
+          "description": "SportRadar game ID. Required for game_stats. Get from the 'id' field in scores results."
+        }
+      },
+      "required": ["data_type", "league"]
+    }
+  }
+]
